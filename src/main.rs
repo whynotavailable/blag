@@ -1,6 +1,10 @@
-use blag::setup;
+use blag::{
+    models::{SetupError, SetupResult},
+    setup,
+};
 
 #[tokio::main]
-async fn main() {
-    setup().await;
+async fn main() -> SetupResult {
+    setup().await.map_err(SetupError::new)?;
+    Ok(())
 }

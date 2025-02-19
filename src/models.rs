@@ -1,10 +1,16 @@
+use std::{fmt::Display, str};
+
+use handlebars::Handlebars;
 use serde::Serialize;
-use sqlx::PgPool;
+use sqlx::{FromRow, PgPool};
 use whynot_errors::{json_ok, JsonResult};
 
 #[derive(Clone, Debug)]
 pub struct AppState {
     pub db: PgPool,
+    // There seemingly isn't a nonref template library that supports async updates. Will have to
+    // make my own eventually.
+    pub registry: Handlebars<'static>,
 }
 
 #[derive(Serialize)]
@@ -24,22 +30,30 @@ impl SimpleResponse {
     }
 }
 
-#[derive(Serialize, Debug)]
-pub struct DataSource {
-    pub id: sqlx::types::Uuid,
-    pub name: String,
+#[derive(FromRow)]
+pub struct TemplateData {
+    pub key: String,
+    pub template: String,
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+// TODO: Move this to the errors lib.
+#[derive(Debug)]
+pub struct SetupError {
+    pub msg: String,
+}
 
-    #[test]
-    fn conversions() {
-        let cst: &str = "hi";
-        assert_eq!(SimpleResponse::new(cst).value, "hi");
-
-        let s: String = format!("{} {}", "hi", "dave");
-        assert_eq!(SimpleResponse::new(s).value, "hi dave");
+impl Display for SetupError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "Setup Error: {}", self.msg)
     }
 }
+
+impl SetupError {
+    pub fn new(msg: impl ToString) -> Self {
+        Self {
+            msg: msg.to_string(),
+        }
+    }
+}
+
+pub type SetupResult = Result<(), SetupError>;

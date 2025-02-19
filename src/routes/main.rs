@@ -3,7 +3,7 @@ use axum::{routing::post, Json, Router};
 use serde::Deserialize;
 use tower_http::cors::CorsLayer;
 use uuid::Uuid;
-use whynot_errors::{json_ok, AppResult, JsonResult};
+use whynot_errors::JsonResult;
 
 #[derive(Deserialize, Debug)]
 pub struct HandoffRequest {
