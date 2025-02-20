@@ -1,19 +1,15 @@
-# Handoff
+# Blag
 
-Handoff is based on the simple idea of "I have an artifact, and I need it deployed." A team will design one or more
-standards based deployments: combining a metadata schema and deployer. CI systems will "handoff" any artifacts to the
+A blog system in rust.
 
-It's meant to be used in tandem with a CI/CD system to handle the final five or ten percent of actual deployment.
+## Templates
 
-## When might you need a system like this
+List of the required templates to run the site.
 
-If you have a large number of deployments, a tool like this will simplify your deployments by providing standards based
-approaches.
+- list
+- post
+- page
 
-If you exist in a regulated environment, standards based deployments are required anyway. You are likely reading this as
-you are looking for a solution to complex compliance requirements like separations of duties.
+It technically does not matter how those templates are created, just that they are.
 
-## When you probably don't need a system like this
-
-If you have five or less deployments, or you deploy once a quarter, this is a waste of your time. Maintaining this
-system will cost you more than just taking screenshots and doing manual deployments.
+I may add something to `post` and `page` to allow you to set your own template.

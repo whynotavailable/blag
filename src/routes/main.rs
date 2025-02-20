@@ -16,7 +16,7 @@ async fn handoff(Json(body): Json<HandoffRequest>) -> JsonResult<SimpleResponse>
     SimpleResponse::json(format!("{:?}", body))
 }
 
-pub fn main_routes() -> Router<AppState> {
+pub fn api_routes() -> Router<AppState> {
     Router::new()
         .route("/handoff", post(handoff))
         .layer(CorsLayer::permissive()) // TODO: fix this lol
