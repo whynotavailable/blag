@@ -1,4 +1,4 @@
-use crate::models::{AppState, SimpleResponse};
+use crate::{app_state::AppState, models::SimpleResponse};
 use axum::{routing::post, Json, Router};
 use serde::Deserialize;
 use tower_http::cors::CorsLayer;

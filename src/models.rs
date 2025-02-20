@@ -1,17 +1,8 @@
-use std::{fmt::Display, str};
+use std::fmt::Display;
 
-use handlebars::Handlebars;
 use serde::Serialize;
-use sqlx::{FromRow, PgPool};
+use sqlx::FromRow;
 use whynot_errors::{json_ok, JsonResult};
-
-#[derive(Clone, Debug)]
-pub struct AppState {
-    pub db: PgPool,
-    // There seemingly isn't a nonref template library that supports async updates. Will have to
-    // make my own eventually.
-    pub registry: Handlebars<'static>,
-}
 
 #[derive(Serialize)]
 pub struct SimpleResponse {

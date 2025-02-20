@@ -1,5 +1,4 @@
-use crate::models::AppState;
-use crate::routes::main::main_routes;
+use crate::{app_state::AppState, routes::main::main_routes};
 use axum::{handler::HandlerWithoutStateExt, Router};
 use whynot_errors::AppError;
 
