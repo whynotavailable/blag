@@ -2,6 +2,7 @@ DROP TABLE IF EXISTS templates CASCADE;
 DROP TABLE IF EXISTS category CASCADE;
 DROP TABLE IF EXISTS posts CASCADE;
 DROP TABLE IF EXISTS pages CASCADE;
+DROP TABLE IF EXISTS config CASCADE;
 
 CREATE TABLE templates
 (
@@ -36,6 +37,29 @@ CREATE TABLE pages
     content     TEXT NOT NULL DEFAULT '',
     raw         TEXT NOT NULL DEFAULT ''
 );
+
+CREATE TABLE config
+(
+    key         TEXT PRIMARY KEY,
+    value       TEXT,
+    last_update TIMESTAMP
+);
+
+CREATE OR REPLACE PROCEDURE set_config(
+    p_key TEXT,
+    p_value TEXT
+)
+AS
+$$
+BEGIN
+    INSERT INTO config (key, value, last_update)
+    VALUES (p_key, p_value, NOW())
+    ON CONFLICT ON CONSTRAINT config_pkey
+        DO UPDATE SET key         = p_key,
+                      value       = p_value,
+                      last_update = NOW();
+END;
+$$ LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION list_posts(
     p_page_size INT,

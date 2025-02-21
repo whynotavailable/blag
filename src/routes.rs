@@ -1,8 +1,8 @@
-use crate::{app_state::AppState, routes::main::api_routes};
+use crate::{app_state::AppState, routes::api::api_routes};
 use axum::Router;
 use ui::ui_routes;
 
-mod main;
+mod api;
 mod ui;
 
 pub fn collect_routes(include_api: bool) -> Router<AppState> {
