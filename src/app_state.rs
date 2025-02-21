@@ -34,8 +34,7 @@ impl AppState {
             .await
             .map_err(AppError::from)?;
 
-        let mut registry: std::sync::RwLockWriteGuard<'_, Handlebars<'_>> =
-            mutex.write().map_err(AppError::from)?;
+        let mut registry = mutex.write().map_err(AppError::from)?;
 
         // Clear anything that currently exists.
         registry.clear_templates();
