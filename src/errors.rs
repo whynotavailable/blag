@@ -2,26 +2,17 @@ use axum::http::StatusCode;
 use tracing::info;
 use whynot_errors::AppError;
 
-pub trait CustomErrors {
-    fn not_found(obj: impl ToString) -> AppError;
-    fn server_error(obj: impl ToString) -> AppError;
+pub fn not_found(obj: impl ToString) -> AppError {
+    info!(code = 404, msg = obj.to_string(), "Custom Error");
+
+    AppError {
+        message: "Not Found".to_string(),
+        code: StatusCode::NOT_FOUND,
+    }
 }
 
-// These error handlers consume the input, and log the output.
-// `not_found` also changes the severity.
-impl CustomErrors for AppError {
-    fn not_found(obj: impl ToString) -> AppError {
-        info!(code = 404, msg = obj.to_string(), "Custom Error");
-
-        AppError {
-            message: "Not Found".to_string(),
-            code: StatusCode::NOT_FOUND,
-        }
-    }
-
-    fn server_error(obj: impl ToString) -> AppError {
-        let mut err = AppError::new(obj);
-        err.message = "Server Error".to_string();
-        err
-    }
+pub fn server_error(obj: impl ToString) -> AppError {
+    let mut err = AppError::new(obj);
+    err.message = "Server Error".to_string();
+    err
 }
