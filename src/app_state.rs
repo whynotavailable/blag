@@ -80,6 +80,8 @@ impl AppState {
             return Ok(false);
         }
 
+        self.reset_timer()?;
+
         let nonce = self.get_nonce()?;
         let db_nonce = self.get_db_nonce().await?;
 
