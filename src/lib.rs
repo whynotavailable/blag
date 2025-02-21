@@ -5,6 +5,7 @@ use std::{
 
 use crate::routes::collect_routes;
 use app_state::AppState;
+use config::Config;
 use handlebars::Handlebars;
 use models::{SetupError, SetupResult};
 use sqlx::postgres::PgPoolOptions;
@@ -14,12 +15,21 @@ pub mod models;
 mod routes;
 
 pub async fn setup() -> SetupResult {
+    let settings = Config::builder()
+        .add_source(config::File::with_name("env"))
+        .add_source(config::Environment::with_prefix("APP"))
+        .build()
+        .map_err(SetupError::new)?;
+
+    let conn = settings.get_string("db").map_err(SetupError::new)?;
+    let conn_cstr = conn.as_str();
+
     // This will become mutable later on lol. I didn't know that was possible
     let registry = Handlebars::new();
 
     let db = PgPoolOptions::new()
         .max_connections(10)
-        .connect("postgres://postgres:garden@localhost/blag")
+        .connect(conn_cstr)
         .await
         .map_err(SetupError::new)?;
 
