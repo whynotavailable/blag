@@ -4,6 +4,8 @@ use tower_http::cors::CorsLayer;
 use whynot_errors::{html_ok, AppError, HtmlResult};
 
 async fn get_search(State(state): State<AppState>) -> HtmlResult {
+    state.refresh_if_needed().await?;
+
     let registry_lock = state.registry.clone();
     let registry = registry_lock.read().map_err(AppError::from)?;
 
