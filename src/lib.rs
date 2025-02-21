@@ -24,6 +24,8 @@ pub async fn setup() -> SetupResult {
     let conn = settings.get_string("db").map_err(SetupError::new)?;
     let conn_cstr = conn.as_str();
 
+    let include_api = settings.get_bool("include_api").unwrap_or(false);
+
     // This will become mutable later on lol. I didn't know that was possible
     let registry = Handlebars::new();
 
@@ -44,7 +46,7 @@ pub async fn setup() -> SetupResult {
         .await
         .map_err(SetupError::new)?;
 
-    let app = collect_routes().with_state(shared_state);
+    let app = collect_routes(include_api).with_state(shared_state);
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3030").await.unwrap();
     axum::serve(listener, app).await.map_err(SetupError::new)?;
