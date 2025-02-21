@@ -1,5 +1,5 @@
 use axum::http::StatusCode;
-use tracing::{error, info};
+use tracing::info;
 use whynot_errors::AppError;
 
 pub trait CustomErrors {
@@ -20,11 +20,8 @@ impl CustomErrors for AppError {
     }
 
     fn server_error(obj: impl ToString) -> AppError {
-        error!("{}", obj.to_string());
-
-        AppError {
-            message: "Server Error".to_string(),
-            code: StatusCode::INTERNAL_SERVER_ERROR,
-        }
+        let mut err = AppError::new(obj);
+        err.message = "Server Error".to_string();
+        err
     }
 }
