@@ -1,4 +1,4 @@
-use crate::{app_state::AppState, models::SimpleResponse};
+use crate::{app_state::AppState, errors::CustomErrors, models::SimpleResponse};
 use axum::{extract::State, routing::get, Router};
 use tower_http::cors::CorsLayer;
 use whynot_errors::{json_ok, AppError, JsonResult};
@@ -9,7 +9,7 @@ async fn db_healthcheck(State(state): State<AppState>) -> JsonResult<SimpleRespo
     let result: (i32,) = sqlx::query_as("SELECT 12;")
         .fetch_one(&state.db)
         .await
-        .map_err(AppError::new)?;
+        .map_err(AppError::server_error)?;
 
     json_ok(SimpleResponse::new(result.0))
 }

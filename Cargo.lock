@@ -2491,11 +2491,12 @@ dependencies = [
 
 [[package]]
 name = "whynot-errors"
-version = "0.2.1"
+version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8af3e3fc7efb4c5e7585ea26dfe1d6d72fb49b24817770a4a48175f73395da1a"
+checksum = "7be46dd582bcb66297fbdf4d568e9691b3899fa644ff58aa67a15810f94e735d"
 dependencies = [
  "axum",
+ "tracing",
 ]
 
 [[package]]

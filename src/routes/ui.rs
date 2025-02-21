@@ -7,7 +7,7 @@ async fn get_search(State(state): State<AppState>) -> HtmlResult {
     state.refresh_if_needed().await?;
 
     let registry_lock = state.registry.clone();
-    let registry = registry_lock.read().map_err(AppError::new)?;
+    let registry = registry_lock.read().map_err(AppError::server_error)?;
 
     let t = SimpleResponse::new("hi");
     let contents = registry.render("list", &t).map_err(AppError::not_found)?;
