@@ -32,9 +32,9 @@ impl AppState {
         let templates: Vec<TemplateData> = sqlx::query_as("SELECT * FROM templates;")
             .fetch_all(&self.db)
             .await
-            .map_err(AppError::from)?;
+            .map_err(AppError::new)?;
 
-        let mut registry = mutex.write().map_err(AppError::from)?;
+        let mut registry = mutex.write().map_err(AppError::new)?;
 
         // Clear anything that currently exists.
         registry.clear_templates();
@@ -42,7 +42,7 @@ impl AppState {
         for template in templates {
             registry
                 .register_template_string(template.key.as_str(), template.template.as_str())
-                .map_err(AppError::from)?;
+                .map_err(AppError::new)?;
         }
 
         Ok(())
@@ -50,7 +50,7 @@ impl AppState {
 
     pub fn reset_timer(&self) -> AppResult<()> {
         let timer_mutex = self.timer.clone();
-        let mut timer = timer_mutex.write().map_err(AppError::from)?;
+        let mut timer = timer_mutex.write().map_err(AppError::new)?;
         *timer = SystemTime::now();
 
         Ok(())
@@ -59,7 +59,7 @@ impl AppState {
     // I don't want to deal with upgrading, so this is a seperate thing.
     pub fn timer_up(&self) -> AppResult<bool> {
         let timer_mutex = self.timer.clone();
-        let timer = timer_mutex.read().map_err(AppError::from)?;
+        let timer = timer_mutex.read().map_err(AppError::new)?;
 
         Ok(timer.elapsed().map(|t| t.as_secs()).unwrap_or(0) > 60)
     }
