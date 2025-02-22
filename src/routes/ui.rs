@@ -8,9 +8,11 @@ use axum::{
     routing::get,
     Router,
 };
+use axum_macros::debug_handler;
 use tower_http::cors::CorsLayer;
 use whynot_errors::{html_ok, HtmlResult};
 
+#[debug_handler]
 async fn get_search(State(state): State<AppState>) -> HtmlResult {
     let t = SimpleResponse::new("hi");
 
@@ -26,7 +28,8 @@ async fn get_search(State(state): State<AppState>) -> HtmlResult {
 
 #[allow(unused_variables)]
 async fn get_page(State(state): State<AppState>, Path(slug): Path<String>) -> HtmlResult {
-    html_ok("")
+    state.refresh_if_needed().await?;
+    html_ok("hi")
 }
 
 #[allow(unused_variables)]
@@ -37,7 +40,7 @@ async fn get_post(State(state): State<AppState>, Path(slug): Path<String>) -> Ht
 pub fn ui_routes() -> Router<AppState> {
     Router::new()
         .route("/", get(get_search))
-        .route("/page/:slug", get(get_page))
-        .route("/post/:slug", get(get_post))
+        .route("/page/{slug}", get(get_page))
+        .route("/post/{slug}", get(get_post))
         .layer(CorsLayer::permissive()) // TODO: fix this lol
 }

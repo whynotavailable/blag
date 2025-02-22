@@ -7,6 +7,7 @@ use std::{
 use handlebars::Handlebars;
 use serde::Serialize;
 use sqlx::PgPool;
+use tracing::info;
 use whynot_errors::{AppError, AppResult};
 
 use crate::{
@@ -15,18 +16,21 @@ use crate::{
 };
 
 pub type Locked<T> = Arc<RwLock<T>>;
+pub fn locker<T>(obj: T) -> Locked<T> {
+    Arc::new(RwLock::new(obj))
+}
 
 #[derive(Clone, Debug)]
 pub struct AppState {
     pub db: PgPool,
     pub registry: Locked<Handlebars<'static>>,
     pub timer: Locked<SystemTime>,
-    pub nonce_container: Arc<NonceContainer>,
+    pub nonce_container: Locked<NonceContainer>,
 }
 
 #[derive(Clone, Debug)]
 pub struct NonceContainer {
-    pub nonce: Locked<String>,
+    pub nonce: String,
 }
 
 #[derive(Serialize)]
@@ -37,6 +41,8 @@ pub struct TestState {
 impl AppState {
     // TODO: Check mutex ordering, could be faster.
     pub async fn reload_templates(&self) -> AppResult<()> {
+        let db_nonce_future = self.get_db_nonce().await;
+
         let mutex = self.registry.clone();
 
         let templates: Vec<TemplateData> = sqlx::query_as("SELECT * FROM templates;")
@@ -55,12 +61,14 @@ impl AppState {
                 .map_err(AppError::new)?;
         }
 
-        let nonce_container = self.nonce_container.clone();
-        let nonce_mutex = nonce_container.nonce.clone();
-        let mut nonce = nonce_mutex.write().map_err(AppError::new)?;
+        let nonce_container_mutex = self.nonce_container.clone();
+        let mut nonce_container = nonce_container_mutex.write().map_err(AppError::new)?;
+        nonce_container.nonce = db_nonce_future;
 
-        *nonce = self.get_db_nonce().await;
+        Ok(())
+    }
 
+    fn set_db_nonce(&self, value: String) -> AppResult<()> {
         Ok(())
     }
 
@@ -88,10 +96,9 @@ impl AppState {
 
     // TODO
     pub fn get_nonce(&self) -> AppResult<String> {
-        let nonce_container = self.nonce_container.clone();
-        let nonce_mutex = nonce_container.nonce.clone();
-        let nonce = nonce_mutex.read().map_err(AppError::new)?;
-        Ok(nonce.clone())
+        let nonce_container_mutex = self.nonce_container.clone();
+        let nonce_container = nonce_container_mutex.read().map_err(AppError::new)?;
+        Ok(nonce_container.nonce.clone())
     }
 
     // TODO: Also add the nonce
@@ -113,6 +120,7 @@ impl AppState {
     pub async fn refresh_if_needed(&self) -> AppResult<()> {
         // If statements are expressions, so no need for return statements on either branch.
         if self.should_reload().await? {
+            info!("Reloading Templates");
             self.reload_templates().await
         } else {
             Ok(())

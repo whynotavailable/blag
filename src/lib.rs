@@ -4,7 +4,7 @@ use std::{
 };
 
 use crate::routes::collect_routes;
-use app_state::{AppState, NonceContainer};
+use app_state::{locker, AppState, NonceContainer};
 use config::Config;
 use handlebars::Handlebars;
 use sqlx::postgres::PgPoolOptions;
@@ -39,10 +39,10 @@ pub async fn setup() -> SetupResult {
 
     let shared_state = AppState {
         db,
-        registry: Arc::new(RwLock::new(registry)),
-        timer: Arc::new(RwLock::new(SystemTime::now())),
-        nonce_container: Arc::new(NonceContainer {
-            nonce: Arc::new(RwLock::new("".to_string())),
+        registry: locker(registry),
+        timer: locker(SystemTime::now()),
+        nonce_container: locker(NonceContainer {
+            nonce: "nope".to_string(),
         }),
     };
 
