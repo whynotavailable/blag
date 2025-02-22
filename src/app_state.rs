@@ -9,7 +9,10 @@ use serde::Serialize;
 use sqlx::PgPool;
 use whynot_errors::{AppError, AppResult};
 
-use crate::models::TemplateData;
+use crate::{
+    db::{get_config, ConfigKeys},
+    models::TemplateData,
+};
 
 pub type Locked<T> = Arc<RwLock<T>>;
 
@@ -18,6 +21,12 @@ pub struct AppState {
     pub db: PgPool,
     pub registry: Locked<Handlebars<'static>>,
     pub timer: Locked<SystemTime>,
+    pub nonce_container: Arc<NonceContainer>,
+}
+
+#[derive(Clone, Debug)]
+pub struct NonceContainer {
+    pub nonce: Locked<String>,
 }
 
 #[derive(Serialize)]
@@ -26,6 +35,7 @@ pub struct TestState {
 }
 
 impl AppState {
+    // TODO: Check mutex ordering, could be faster.
     pub async fn reload_templates(&self) -> AppResult<()> {
         let mutex = self.registry.clone();
 
@@ -45,6 +55,12 @@ impl AppState {
                 .map_err(AppError::new)?;
         }
 
+        let nonce_container = self.nonce_container.clone();
+        let nonce_mutex = nonce_container.nonce.clone();
+        let mut nonce = nonce_mutex.write().map_err(AppError::new)?;
+
+        *nonce = self.get_db_nonce().await;
+
         Ok(())
     }
 
@@ -56,20 +72,26 @@ impl AppState {
         Ok(())
     }
 
-    // I don't want to deal with upgrading, so this is a seperate thing.
+    // TODO: Make the timer value here configurable somehow
     pub fn timer_up(&self) -> AppResult<bool> {
         let timer_mutex = self.timer.clone();
         let timer = timer_mutex.read().map_err(AppError::new)?;
 
-        Ok(timer.elapsed().map(|t| t.as_secs()).unwrap_or(0) > 60)
+        Ok(timer.elapsed().map(|t| t.as_secs()).unwrap_or(0) > 300)
     }
 
-    pub async fn get_db_nonce(&self) -> AppResult<String> {
-        Ok("yo".to_string())
+    pub async fn get_db_nonce(&self) -> String {
+        get_config(&self.db, ConfigKeys::TemplateNonce)
+            .await
+            .unwrap_or("lolnotset".to_string())
     }
 
+    // TODO
     pub fn get_nonce(&self) -> AppResult<String> {
-        Ok("yo".to_string())
+        let nonce_container = self.nonce_container.clone();
+        let nonce_mutex = nonce_container.nonce.clone();
+        let nonce = nonce_mutex.read().map_err(AppError::new)?;
+        Ok(nonce.clone())
     }
 
     // TODO: Also add the nonce
@@ -83,7 +105,7 @@ impl AppState {
         self.reset_timer()?;
 
         let nonce = self.get_nonce()?;
-        let db_nonce = self.get_db_nonce().await?;
+        let db_nonce = self.get_db_nonce().await;
 
         Ok(nonce != db_nonce)
     }

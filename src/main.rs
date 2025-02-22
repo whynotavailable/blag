@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 use blag::setup;
 use tracing::Level;
 use tracing_subscriber::FmtSubscriber;

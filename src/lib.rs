@@ -4,13 +4,14 @@ use std::{
 };
 
 use crate::routes::collect_routes;
-use app_state::AppState;
+use app_state::{AppState, NonceContainer};
 use config::Config;
 use handlebars::Handlebars;
 use sqlx::postgres::PgPoolOptions;
 use whynot_errors::{SetupError, SetupResult};
 
 mod app_state;
+mod db;
 mod errors;
 pub mod models;
 mod routes;
@@ -40,6 +41,9 @@ pub async fn setup() -> SetupResult {
         db,
         registry: Arc::new(RwLock::new(registry)),
         timer: Arc::new(RwLock::new(SystemTime::now())),
+        nonce_container: Arc::new(NonceContainer {
+            nonce: Arc::new(RwLock::new("".to_string())),
+        }),
     };
 
     shared_state
