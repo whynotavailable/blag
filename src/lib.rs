@@ -1,7 +1,4 @@
-use std::{
-    sync::{Arc, RwLock},
-    time::SystemTime,
-};
+use std::time::SystemTime;
 
 use crate::routes::collect_routes;
 use app_state::{locker, AppState, NonceContainer};

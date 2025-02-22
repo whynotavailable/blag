@@ -1,5 +1,3 @@
-use std::fmt::Display;
-
 use blag::setup;
 use tracing::Level;
 use tracing_subscriber::FmtSubscriber;
@@ -8,7 +6,7 @@ use whynot_errors::{SetupError, SetupResult};
 #[tokio::main]
 async fn main() -> SetupResult {
     let subscriber = FmtSubscriber::builder()
-        .with_max_level(Level::DEBUG)
+        .with_max_level(Level::INFO)
         .finish();
 
     tracing::subscriber::set_global_default(subscriber)
