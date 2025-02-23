@@ -48,26 +48,27 @@ where
         let mutex = auth_data.key_map.clone();
 
         let mut has_kid = false;
+        let test_key = "key".to_string();
 
         if let Ok(km) = mutex.read() {
             // km exists
-            has_kid = km.contains_key("");
+            has_kid = km.contains_key(&test_key);
         }
 
         if !has_kid {
             // Load key
-            let kmat = "km".to_string();
+            let kmat = "simulated key data".to_string();
 
             if let Ok(mut km) = mutex.write() {
-                km.insert("".to_string(), kmat);
+                km.insert(test_key.clone(), kmat);
             }
         }
 
         if let Ok(km) = mutex.read() {
-            // Can actually verify shit lol
+            if let Some(key) = km.get(&test_key) {
+                info!("{}", key);
+            }
         }
-
-        // km doesn't
 
         if let Some(user_agent) = parts.headers.get(USER_AGENT) {
             Ok(ExtractUserAgent(user_agent.clone()))
