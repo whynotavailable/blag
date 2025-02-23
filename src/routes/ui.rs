@@ -7,7 +7,6 @@ use axum::{
     routing::get,
     Router,
 };
-use axum_macros::debug_handler;
 use serde::{Deserialize, Serialize};
 use sqlx::{prelude::FromRow, query_as};
 use tower_http::cors::CorsLayer;
@@ -35,7 +34,6 @@ struct SearchParams {
 }
 
 // TODO: paging
-#[debug_handler]
 async fn get_search(
     State(state): State<AppState>,
     Query(params): Query<SearchParams>,
