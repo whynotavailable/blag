@@ -16,6 +16,8 @@ use whynot_errors::{html_ok, HtmlResult};
 #[derive(Serialize, Debug)]
 struct PageList {
     posts: Vec<PageListing>,
+    next: String,
+    prev: String,
 }
 
 #[derive(FromRow, Serialize, Debug)]
@@ -33,12 +35,17 @@ struct SearchParams {
     category: Option<Uuid>,
 }
 
+// To make the conversions simpler
+fn get_size<T>(vec: &[T]) -> usize {
+    vec.len().to_owned()
+}
+
 // TODO: paging
 async fn get_search(
     State(state): State<AppState>,
     Query(params): Query<SearchParams>,
 ) -> HtmlResult {
-    let target_page: i32 = params.page.unwrap_or(0);
+    let target_page: i32 = params.page.unwrap_or(1);
 
     let mut posts: Vec<PageListing> = query_as("SELECT * FROM list_posts(6, $1, $2)")
         .bind(target_page)
@@ -47,9 +54,23 @@ async fn get_search(
         .await
         .map_err(errors::server_error)?;
 
+    let has_next = get_size(&posts) > 5;
+
     posts.truncate(5);
 
-    let data = PageList { posts };
+    let data = PageList {
+        posts,
+        next: if has_next {
+            format!("?page={}", target_page + 1)
+        } else {
+            "".to_string()
+        },
+        prev: if target_page > 1 {
+            format!("?page={}", target_page - 1)
+        } else {
+            "".to_string()
+        },
+    };
 
     let contents = state.registry.render("list", &data).map_err(not_found)?;
 

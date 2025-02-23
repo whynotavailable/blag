@@ -17,13 +17,16 @@ pub async fn setup(root_path: String) -> SetupResult {
     let root_path = Path::new(root_path.as_str());
 
     let settings = Config::builder()
-        .add_source(config::File::new(
-            root_path
-                .join("env.toml")
-                .to_str()
-                .ok_or(SetupError::new("no idea"))?,
-            FileFormat::Toml,
-        ))
+        .add_source(
+            config::File::new(
+                root_path
+                    .join("env.toml")
+                    .to_str()
+                    .ok_or(SetupError::new("no idea"))?,
+                FileFormat::Toml,
+            )
+            .required(false),
+        )
         .add_source(config::Environment::with_prefix("APP"))
         .build()
         .map_err(SetupError::new)?;
@@ -58,6 +61,7 @@ pub async fn setup(root_path: String) -> SetupResult {
         .await
         .map_err(SetupError::new)?;
 
+    println!("starting up");
     axum::serve(listener, app).await.map_err(SetupError::new)?;
 
     Ok(())
