@@ -54,7 +54,9 @@ pub async fn setup(root_path: String) -> SetupResult {
 
     let shared_state = AppState { db, registry };
 
-    let app = collect_routes(include_api)
+    let audience = settings.get_string("audience").unwrap_or("".to_string());
+
+    let app = collect_routes(include_api, audience)
         .with_state(shared_state)
         .nest_service("/assets", ServeDir::new(root_path.join("assets")));
 

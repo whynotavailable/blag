@@ -12,15 +12,20 @@ use axum::{
     routing::get,
     Extension, Router,
 };
+use jsonwebtoken::{
+    decode, decode_header,
+    jwk::{AlgorithmParameters, Jwk, JwkSet},
+    DecodingKey, Validation,
+};
 use tower_http::cors::CorsLayer;
 use tracing::info;
-use whynot_errors::{json_ok, JsonResult};
+use whynot_errors::{json_ok, AppError, JsonResult};
 
 /// Simple endpoint to check the db connection is working.
 /// TODO: Remove later to UI routes.
 async fn db_healthcheck(
     State(state): State<AppState>,
-    ExtractUserAgent(agent): ExtractUserAgent,
+    Auth(agent): Auth,
 ) -> JsonResult<SimpleResponse> {
     let result: (i32,) = sqlx::query_as("SELECT 12;")
         .fetch_one(&state.db)
@@ -30,62 +35,112 @@ async fn db_healthcheck(
     json_ok(SimpleResponse::new(result.0))
 }
 
-struct ExtractUserAgent(HeaderValue);
+struct Auth(String);
 
-impl<S> FromRequestParts<S> for ExtractUserAgent
+impl<S> FromRequestParts<S> for Auth
 where
     S: Send + Sync,
 {
-    type Rejection = Response;
+    type Rejection = AppError;
 
     async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
         use axum::RequestPartsExt;
         let Extension(auth_data) = parts
             .extract::<Extension<AuthData>>()
             .await
-            .map_err(|err| err.into_response())?;
+            .map_err(AppError::new)?;
+
+        let auth_header = parts
+            .headers
+            .get("Authorization")
+            .ok_or(AppError::new("Missing Auth Header"))?
+            .to_str()
+            .map_err(AppError::new)?;
+
+        let token_parts: Vec<&str> = auth_header.split(' ').collect();
+
+        if token_parts.len() != 2 {
+            return Err(AppError::new("Invalid Token"));
+        }
+
+        let header = decode_header(token_parts[1]).map_err(AppError::new)?;
 
         let mutex = auth_data.key_map.clone();
 
+        let target_kid = header.kid.ok_or(AppError::new("Missing kid"))?;
+
         let mut has_kid = false;
-        let test_key = "key".to_string();
 
         if let Ok(km) = mutex.read() {
             // km exists
-            has_kid = km.contains_key(&test_key);
+            has_kid = km.contains_key(&target_kid);
         }
 
         if !has_kid {
-            // Load key
-            let kmat = "simulated key data".to_string();
+            // Load keyset
+            let kmat: JwkSet = serde_json::from_str("").map_err(AppError::new)?;
 
             if let Ok(mut km) = mutex.write() {
-                km.insert(test_key.clone(), kmat);
+                for k in kmat.keys {
+                    // The extra clone sucks, but it's only the once here for the key.
+                    let kid = k
+                        .common
+                        .key_id
+                        .clone()
+                        .ok_or(AppError::new("keyset missing kid"))?;
+                    km.entry(kid).or_insert(k);
+                }
             }
         }
 
-        if let Ok(km) = mutex.read() {
-            if let Some(key) = km.get(&test_key) {
-                info!("{}", key);
-            }
-        }
+        let Ok(km_guard) = mutex.read() else {
+            return Err(AppError::new("lock failed"));
+        };
 
-        if let Some(user_agent) = parts.headers.get(USER_AGENT) {
-            Ok(ExtractUserAgent(user_agent.clone()))
-        } else {
-            Err((StatusCode::BAD_REQUEST, "`User-Agent` header is missing").into_response())
-        }
+        let Some(key_material) = km_guard.get(&target_kid) else {
+            return Err(AppError::new("no key"));
+        };
+
+        let decoding_key = match &key_material.algorithm {
+            AlgorithmParameters::RSA(rsa) => {
+                DecodingKey::from_rsa_components(&rsa.n, &rsa.e).map_err(AppError::new)?
+            }
+            _ => unreachable!("algorithm should be a RSA in this example"),
+        };
+
+        let validation = {
+            let mut validation = Validation::new(header.alg);
+            validation.set_audience(&[auth_data.audience]);
+            validation
+        };
+
+        let decoded_token = decode::<HashMap<String, serde_json::Value>>(
+            token_parts[1],
+            &decoding_key,
+            &validation,
+        )
+        .map_err(AppError::new)?;
+
+        Ok(Auth(
+            decoded_token
+                .claims
+                .get("sub")
+                .ok_or(AppError::new("Missing sub"))?
+                .to_string(),
+        ))
     }
 }
 
 #[derive(Clone, Debug)]
 struct AuthData {
-    key_map: Arc<RwLock<HashMap<String, String>>>,
+    key_map: Arc<RwLock<HashMap<String, Jwk>>>,
+    audience: String,
 }
 
-pub fn api_routes() -> Router<AppState> {
+pub fn api_routes(audience: String) -> Router<AppState> {
     let auth_data = AuthData {
         key_map: Arc::new(RwLock::new(HashMap::new())),
+        audience,
     };
     Router::new()
         .route("/db-healthcheck", get(db_healthcheck))
