@@ -40,6 +40,17 @@ fn get_size<T>(vec: &[T]) -> usize {
     vec.len().to_owned()
 }
 
+fn get_query(page: i32, category: Option<Uuid>) -> String {
+    match category {
+        Some(c) => {
+            format!("?page={}&category={}", page, c)
+        }
+        None => {
+            format!("?page={}", page)
+        }
+    }
+}
+
 // TODO: paging
 async fn get_search(
     State(state): State<AppState>,
@@ -61,12 +72,12 @@ async fn get_search(
     let data = PageList {
         posts,
         next: if has_next {
-            format!("?page={}", target_page + 1)
+            get_query(target_page + 1, params.category)
         } else {
             "".to_string()
         },
         prev: if target_page > 1 {
-            format!("?page={}", target_page - 1)
+            get_query(target_page - 1, params.category)
         } else {
             "".to_string()
         },
