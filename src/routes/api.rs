@@ -3,12 +3,10 @@ use std::{
     sync::{Arc, RwLock},
 };
 
-use crate::{app_state::AppState, auth::AuthLayer, errors::server_error, models::SimpleResponse};
+use crate::{app_state::AppState, errors::server_error, models::SimpleResponse};
 use axum::{
-    extract::{FromRequestParts, Request, State},
-    http::{header::USER_AGENT, request::Parts, HeaderMap, HeaderValue, StatusCode},
-    middleware::{self, Next},
-    response::{IntoResponse, Response},
+    extract::{FromRequestParts, State},
+    http::request::Parts,
     routing::get,
     Extension, Router,
 };
@@ -18,14 +16,13 @@ use jsonwebtoken::{
     DecodingKey, Validation,
 };
 use tower_http::cors::CorsLayer;
-use tracing::info;
 use whynot_errors::{json_ok, AppError, JsonResult};
 
 /// Simple endpoint to check the db connection is working.
 /// TODO: Remove later to UI routes.
 async fn db_healthcheck(
     State(state): State<AppState>,
-    Auth(agent): Auth,
+    Auth(_agent): Auth,
 ) -> JsonResult<SimpleResponse> {
     let result: (i32,) = sqlx::query_as("SELECT 12;")
         .fetch_one(&state.db)
@@ -43,7 +40,7 @@ where
 {
     type Rejection = AppError;
 
-    async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
+    async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
         use axum::RequestPartsExt;
         let Extension(auth_data) = parts
             .extract::<Extension<AuthData>>()

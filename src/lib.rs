@@ -9,7 +9,6 @@ use tower_http::services::ServeDir;
 use whynot_errors::{SetupError, SetupResult};
 
 mod app_state;
-mod auth;
 mod errors;
 pub mod models;
 mod routes;
