@@ -12,6 +12,7 @@ jobs:
       GITHUB_TOKEN: ${{ github.TOKEN }}
     steps:
       - uses: actions/checkout@v4
+      - uses: docker/setup-docker-action@v4
       - name: Prereqs
         run: |
           sudo apt-get update
