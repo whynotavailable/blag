@@ -15,5 +15,5 @@ jobs:
       - name: Prereqs
         run: |
           sudo apt-get update
-          docker login -u belkonar -p ${{secrets.docker}}
+          docker login -u belkonar -p ${{secrets.DOCKER}}
           docker buildx build --platform linux/arm64 . --builder cloud-belkonar-whynot --tag belkonar/mysite:${{github.event.release.tag_name}} --push
