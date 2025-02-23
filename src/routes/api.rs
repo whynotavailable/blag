@@ -68,6 +68,9 @@ where
 
         let mut has_kid = false;
 
+        // So the next few statements are weird. Need scoped if statements to remove the RAII
+        // guards so the upgrade to write doesn't deadlock or be super annoying.
+
         if let Ok(km) = mutex.read() {
             // km exists
             has_kid = km.contains_key(&target_kid);
