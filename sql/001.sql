@@ -19,6 +19,7 @@ CREATE TABLE category
 
 CREATE TABLE posts
 (
+    title       TEXT,
     slug        TEXT PRIMARY KEY,
     description TEXT   NOT NULL DEFAULT '',
     category    UUID   NOT NULL REFERENCES category (id),
@@ -32,6 +33,7 @@ CREATE INDEX idx_posts_timestamp ON posts (published DESC);
 
 CREATE TABLE pages
 (
+    title       TEXT,
     slug        TEXT PRIMARY KEY,
     description TEXT NOT NULL DEFAULT '',
     content     TEXT NOT NULL DEFAULT '',
@@ -61,17 +63,19 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE OR REPLACE FUNCTION list_posts(
+DROP FUNCTION IF EXISTS list_posts(integer, integer, uuid);
+CREATE FUNCTION list_posts(
     p_page_size INT,
     p_page_number INT,
     p_category UUID
 )
     RETURNS TABLE
             (
+                title       TEXT,
                 slug        TEXT,
                 description TEXT,
                 category    TEXT,
-                published   TIMESTAMP
+                category_id UUID
             )
 AS
 $$
@@ -81,7 +85,7 @@ BEGIN
     l_page_offset := GREATEST(p_page_number - 1, 0) * p_page_size;
 
     RETURN QUERY
-        SELECT posts.slug, posts.description, cat.name, posts.published
+        SELECT posts.title, posts.slug, posts.description, cat.name, cat.id
         FROM posts
                  INNER JOIN category cat on posts.category = cat.id
         WHERE posts.published IS NOT NULL
@@ -90,3 +94,8 @@ BEGIN
         LIMIT p_page_size OFFSET l_page_offset;
 END;
 $$ LANGUAGE plpgsql;
+
+-- Preset Category For Dev
+INSERT INTO category (id, name, template)
+VALUES ('76a305cc-b0d4-40b3-a15b-84ec616ea79f', 'Programming', NULL)
+ON CONFLICT ON CONSTRAINT category_pkey DO NOTHING;

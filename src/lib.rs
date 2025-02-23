@@ -1,21 +1,29 @@
-use std::time::SystemTime;
+use std::path::Path;
 
 use crate::routes::collect_routes;
-use app_state::{locker, AppState, NonceContainer};
-use config::Config;
-use handlebars::Handlebars;
+use app_state::AppState;
+use config::{Config, FileFormat};
+use handlebars::{DirectorySourceOptions, Handlebars};
 use sqlx::postgres::PgPoolOptions;
+use tower_http::services::ServeDir;
 use whynot_errors::{SetupError, SetupResult};
 
 mod app_state;
-mod db;
 mod errors;
 pub mod models;
 mod routes;
 
-pub async fn setup() -> SetupResult {
+pub async fn setup(root_path: String) -> SetupResult {
+    let root_path = Path::new(root_path.as_str());
+
     let settings = Config::builder()
-        .add_source(config::File::with_name("env"))
+        .add_source(config::File::new(
+            root_path
+                .join("env.toml")
+                .to_str()
+                .ok_or(SetupError::new("no idea"))?,
+            FileFormat::Toml,
+        ))
         .add_source(config::Environment::with_prefix("APP"))
         .build()
         .map_err(SetupError::new)?;
@@ -25,8 +33,14 @@ pub async fn setup() -> SetupResult {
 
     let include_api = settings.get_bool("include_api").unwrap_or(false);
 
-    // This will become mutable later on lol. I didn't know that was possible
-    let registry = Handlebars::new();
+    let mut registry = Handlebars::new();
+
+    registry
+        .register_templates_directory(
+            root_path.join("templates"),
+            DirectorySourceOptions::default(),
+        )
+        .map_err(SetupError::new)?;
 
     let db = PgPoolOptions::new()
         .max_connections(10)
@@ -34,23 +48,16 @@ pub async fn setup() -> SetupResult {
         .await
         .map_err(SetupError::new)?;
 
-    let shared_state = AppState {
-        db,
-        registry: locker(registry),
-        timer: locker(SystemTime::now()),
-        nonce_container: locker(NonceContainer {
-            nonce: "nope".to_string(),
-        }),
-    };
+    let shared_state = AppState { db, registry };
 
-    shared_state
-        .reload_templates()
+    let app = collect_routes(include_api)
+        .with_state(shared_state)
+        .nest_service("/assets", ServeDir::new(root_path.join("assets")));
+
+    let listener = tokio::net::TcpListener::bind("0.0.0.0:3030")
         .await
         .map_err(SetupError::new)?;
 
-    let app = collect_routes(include_api).with_state(shared_state);
-
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:3030").await.unwrap();
     axum::serve(listener, app).await.map_err(SetupError::new)?;
 
     Ok(())

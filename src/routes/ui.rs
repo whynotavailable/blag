@@ -1,57 +1,123 @@
 use crate::{
     app_state::AppState,
-    errors::{self, not_found, server_error},
-    models::SimpleResponse,
+    errors::{self, not_found},
 };
 use axum::{
-    extract::{Path, State},
+    extract::{Path, Query, State},
     routing::get,
     Router,
 };
 use axum_macros::debug_handler;
-use sqlx::query_as;
+use serde::{Deserialize, Serialize};
+use sqlx::{prelude::FromRow, query_as};
 use tower_http::cors::CorsLayer;
+use uuid::Uuid;
 use whynot_errors::{html_ok, HtmlResult};
 
+#[derive(Serialize, Debug)]
+struct PageList {
+    posts: Vec<PageListing>,
+}
+
+#[derive(FromRow, Serialize, Debug)]
+struct PageListing {
+    title: String,
+    slug: String,
+    description: String,
+    category: String,
+    category_id: Uuid,
+}
+
+#[derive(Deserialize, Debug)]
+struct SearchParams {
+    page: Option<i32>,
+    category: Option<Uuid>,
+}
+
+// TODO: paging
 #[debug_handler]
-async fn get_search(State(state): State<AppState>) -> HtmlResult {
-    let t = SimpleResponse::new("hi");
+async fn get_search(
+    State(state): State<AppState>,
+    Query(params): Query<SearchParams>,
+) -> HtmlResult {
+    let target_page: i32 = params.page.unwrap_or(0);
 
-    state.refresh_if_needed().await?;
+    let mut posts: Vec<PageListing> = query_as("SELECT * FROM list_posts(6, $1, $2)")
+        .bind(target_page)
+        .bind(params.category)
+        .fetch_all(&state.db)
+        .await
+        .map_err(errors::server_error)?;
 
-    let registry_lock = state.registry.clone();
-    let registry = registry_lock.read().map_err(server_error)?;
+    posts.truncate(5);
 
-    let contents = registry.render("list", &t).map_err(not_found)?;
+    let data = PageList { posts };
+
+    let contents = state.registry.render("list", &data).map_err(not_found)?;
 
     html_ok(contents)
 }
 
+#[derive(FromRow, Serialize, Debug)]
+struct GetPageData {
+    title: String,
+    content: String,
+}
+
 #[allow(unused_variables)]
 async fn get_page(State(state): State<AppState>, Path(slug): Path<String>) -> HtmlResult {
-    state.refresh_if_needed().await?;
+    let query: &'static str = r#"
+    SELECT title, content
+    FROM pages
+    WHERE 
+        slug = $1;
+    "#;
 
-    let r: (String,) = query_as("SELECT content FROM pages WHERE slug = $1;")
+    let data: GetPageData = query_as(query)
         .bind(slug)
         .fetch_one(&state.db)
         .await
         .map_err(errors::not_found)?;
 
-    html_ok(r.0)
+    let contents = state.registry.render("page", &data).map_err(not_found)?;
+    html_ok(contents)
+}
+
+#[derive(FromRow, Serialize, Debug)]
+struct GetPostData {
+    title: String,
+    content: String,
+    category: String,
+    category_id: Uuid,
 }
 
 #[allow(unused_variables)]
 async fn get_post(State(state): State<AppState>, Path(slug): Path<String>) -> HtmlResult {
-    html_ok("")
+    let query = r#"
+    SELECT 
+        posts.title, 
+        posts.content,
+        category.name as category,
+        category.id as category_id
+    FROM posts 
+        INNER JOIN category
+        ON posts.category = category.id
+    WHERE 
+        slug = $1;
+    "#;
+
+    let data: GetPostData = query_as(query)
+        .bind(slug)
+        .fetch_one(&state.db)
+        .await
+        .map_err(errors::not_found)?;
+
+    let contents = state.registry.render("post", &data).map_err(not_found)?;
+    html_ok(contents)
 }
 
-async fn lt_lock(State(state): State<AppState>) -> HtmlResult {
-    state.refresh_if_needed().await?;
+async fn lt_lock() -> HtmlResult {
     html_ok("lt")
-}
-
-async fn lt_reload(State(state): State<AppState>) -> HtmlResult {
-    html_ok(state.get_db_nonce().await)
 }
 
 pub fn ui_routes() -> Router<AppState> {
@@ -60,6 +126,5 @@ pub fn ui_routes() -> Router<AppState> {
         .route("/page/{slug}", get(get_page))
         .route("/post/{slug}", get(get_post))
         .route("/lt", get(lt_lock))
-        .route("/reload", get(lt_reload))
         .layer(CorsLayer::permissive()) // TODO: fix this lol
 }
