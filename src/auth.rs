@@ -50,7 +50,8 @@ where
 
         let target_kid = header.kid.ok_or_else(|| AppError::new("Missing kid"))?;
 
-        let mut has_kid = false;
+        // If the mutex is poisoned, this will all burn anyway so it's fine to save an API call.
+        let mut has_kid = true;
 
         // So the next few statements are weird. Need scoped if statements to remove the RAII
         // guards so the upgrade to write doesn't deadlock or be super annoying.
