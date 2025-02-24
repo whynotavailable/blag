@@ -9,7 +9,6 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 use sqlx::{prelude::FromRow, query_as};
-use tower_http::cors::CorsLayer;
 use uuid::Uuid;
 use whynot_errors::{html_ok, HtmlResult};
 

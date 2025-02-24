@@ -18,7 +18,7 @@ use axum::{
 };
 use tower_http::cors::CorsLayer;
 use tracing::warn;
-use whynot_errors::{json_ok, JsonResult, SetupError};
+use whynot_errors::{json_ok, JsonResult};
 
 async fn db_healthcheck(
     State(state): State<AppState>,
@@ -58,6 +58,6 @@ pub fn api_routes(auth_options: AuthOptions) -> Router<AppState> {
 
     Router::new()
         .route("/db-healthcheck", get(db_healthcheck))
-        .layer(cors) // TODO: fix this lol
+        .layer(cors)
         .layer(Extension(auth_data))
 }
