@@ -22,7 +22,7 @@ use whynot_errors::{json_ok, AppError, JsonResult};
 /// TODO: Remove later to UI routes.
 async fn db_healthcheck(
     State(state): State<AppState>,
-    Auth(_agent): Auth,
+    Auth(_auth): Auth,
 ) -> JsonResult<SimpleResponse> {
     let result: (i32,) = sqlx::query_as("SELECT 12;")
         .fetch_one(&state.db)
@@ -50,7 +50,7 @@ where
         let auth_header = parts
             .headers
             .get("Authorization")
-            .ok_or(AppError::new("Missing Auth Header"))?
+            .ok_or_else(|| AppError::new("Missing Auth Header"))?
             .to_str()
             .map_err(AppError::new)?;
 
@@ -64,7 +64,7 @@ where
 
         let mutex = auth_data.key_map.clone();
 
-        let target_kid = header.kid.ok_or(AppError::new("Missing kid"))?;
+        let target_kid = header.kid.ok_or_else(|| AppError::new("Missing kid"))?;
 
         let mut has_kid = false;
 
@@ -78,7 +78,12 @@ where
 
         if !has_kid {
             // Load keyset
-            let kmat: JwkSet = serde_json::from_str("").map_err(AppError::new)?;
+            let kmat: JwkSet = reqwest::get("https://notavailable.auth0.com/.well-known/jwks.json")
+                .await
+                .map_err(AppError::new)?
+                .json()
+                .await
+                .map_err(AppError::new)?;
 
             if let Ok(mut km) = mutex.write() {
                 for k in kmat.keys {
@@ -87,7 +92,7 @@ where
                         .common
                         .key_id
                         .clone()
-                        .ok_or(AppError::new("keyset missing kid"))?;
+                        .ok_or_else(|| AppError::new("keyset missing kid"))?;
                     km.entry(kid).or_insert(k);
                 }
             }
@@ -111,6 +116,8 @@ where
         let validation = {
             let mut validation = Validation::new(header.alg);
             validation.set_audience(&[auth_data.audience]);
+            // TODO: move this to auth config thing.
+            validation.set_issuer(&["https://notavailable.auth0.com/"]);
             validation
         };
 
@@ -125,7 +132,7 @@ where
             decoded_token
                 .claims
                 .get("sub")
-                .ok_or(AppError::new("Missing sub"))?
+                .ok_or_else(|| AppError::new("Missing sub"))?
                 .to_string(),
         ))
     }
