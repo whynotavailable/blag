@@ -2,6 +2,7 @@ use std::path::Path;
 
 use crate::routes::collect_routes;
 use app_state::AppState;
+use auth::AuthOptions;
 use config::{Config, FileFormat};
 use handlebars::{DirectorySourceOptions, Handlebars};
 use sqlx::postgres::PgPoolOptions;
@@ -9,6 +10,7 @@ use tower_http::services::ServeDir;
 use whynot_errors::{SetupError, SetupResult};
 
 mod app_state;
+mod auth;
 mod errors;
 pub mod models;
 mod routes;
@@ -22,7 +24,7 @@ pub async fn setup(root_path: String) -> SetupResult {
                 root_path
                     .join("env.toml")
                     .to_str()
-                    .ok_or(SetupError::new("no idea"))?,
+                    .ok_or_else(|| SetupError::new("no idea"))?,
                 FileFormat::Toml,
             )
             .required(false),
@@ -54,8 +56,14 @@ pub async fn setup(root_path: String) -> SetupResult {
     let shared_state = AppState { db, registry };
 
     let audience = settings.get_string("audience").unwrap_or("".to_string());
+    let issuer = settings.get_string("issuer").unwrap_or("".to_string());
+    let auth_options = AuthOptions { audience, issuer };
 
-    let app = collect_routes(include_api, audience)
+    if include_api {
+        auth_options.validate()?;
+    }
+
+    let app = collect_routes(include_api, auth_options)
         .with_state(shared_state)
         .nest_service("/assets", ServeDir::new(root_path.join("assets")));
 
