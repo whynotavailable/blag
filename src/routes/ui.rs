@@ -51,7 +51,6 @@ fn get_query(page: i32, category: Option<Uuid>) -> String {
     }
 }
 
-// TODO: paging
 async fn get_search(
     State(state): State<AppState>,
     Query(params): Query<SearchParams>,
@@ -156,5 +155,4 @@ pub fn ui_routes() -> Router<AppState> {
         .route("/page/{slug}", get(get_page))
         .route("/post/{slug}", get(get_post))
         .route("/lt", get(lt_lock))
-        .layer(CorsLayer::permissive()) // TODO: fix this lol
 }

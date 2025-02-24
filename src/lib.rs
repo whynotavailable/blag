@@ -57,7 +57,13 @@ pub async fn setup(root_path: String) -> SetupResult {
 
     let audience = settings.get_string("audience").unwrap_or("".to_string());
     let issuer = settings.get_string("issuer").unwrap_or("".to_string());
-    let auth_options = AuthOptions { audience, issuer };
+    let origin = settings.get_string("origin").ok();
+
+    let auth_options = AuthOptions {
+        audience,
+        issuer,
+        origin,
+    };
 
     if include_api {
         auth_options.validate()?;

@@ -25,5 +25,3 @@ pub struct TemplateData {
     pub key: String,
     pub template: String,
 }
-
-// TODO: Move this to the errors lib.

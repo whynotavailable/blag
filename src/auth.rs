@@ -117,7 +117,6 @@ where
         let validation = {
             let mut validation = Validation::new(header.alg);
             validation.set_audience(&[auth_data.options.audience]);
-            // TODO: move this to auth config thing.
             validation.set_issuer(&[auth_data.options.issuer]);
             validation
         };
@@ -147,6 +146,7 @@ pub struct AuthData {
 pub struct AuthOptions {
     pub audience: String,
     pub issuer: String,
+    pub origin: Option<String>,
 }
 
 impl AuthOptions {
