@@ -16,6 +16,11 @@ async fn main() -> SetupResult {
     tracing::subscriber::set_global_default(subscriber)
         .map_err(|err| SetupError::new(format!("setting default subscriber failed: {}", err)))?;
 
-    setup(args[1].clone()).await.map_err(SetupError::new)?;
+    let dir = args
+        .get(1)
+        .ok_or_else(|| SetupError::new("Need to supply dir"))?
+        .to_owned();
+
+    setup(dir).await.map_err(SetupError::new)?;
     Ok(())
 }

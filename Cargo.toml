@@ -28,3 +28,9 @@ futures-util = "0.3.31"
 jsonwebtoken = "9.3.1"
 reqwest = { version = "0.12.12", features = ["json"] }
 
+# lints to make sure you aren't being a dummy
+[lints.clippy]
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"
+indexing_slicing = "deny"

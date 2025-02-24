@@ -1,6 +1,7 @@
 use std::{
     collections::HashMap,
     sync::{Arc, RwLock},
+    time::SystemTime,
 };
 
 use crate::{
@@ -31,6 +32,7 @@ pub fn api_routes(auth_options: AuthOptions) -> Router<AppState> {
     let auth_data = AuthData {
         key_map: Arc::new(RwLock::new(HashMap::new())),
         options: auth_options,
+        timer: Arc::new(RwLock::new(SystemTime::UNIX_EPOCH)),
     };
     Router::new()
         .route("/db-healthcheck", get(db_healthcheck))

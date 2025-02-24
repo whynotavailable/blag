@@ -1,6 +1,7 @@
 use std::{
     collections::HashMap,
     sync::{Arc, RwLock},
+    time::SystemTime,
 };
 
 use axum::{extract::FromRequestParts, http::request::Parts, Extension};
@@ -9,7 +10,11 @@ use jsonwebtoken::{
     jwk::{AlgorithmParameters, Jwk, JwkSet},
     DecodingKey, Validation,
 };
-use whynot_errors::{AppError, SetupError, SetupResult};
+use whynot_errors::{AppError, AppResult, SetupError, SetupResult};
+
+fn lock_err<T>(s: impl ToString) -> AppResult<T> {
+    Err(AppError::new(s))
+}
 
 pub struct Auth(pub String);
 
@@ -35,11 +40,11 @@ where
 
         let token_parts: Vec<&str> = auth_header.split(' ').collect();
 
-        if token_parts.len() != 2 {
-            return Err(AppError::new("Invalid Token"));
-        }
+        let Some(token) = token_parts.get(1) else {
+            return lock_err("Invalid Token");
+        };
 
-        let header = decode_header(token_parts[1]).map_err(AppError::new)?;
+        let header = decode_header(token).map_err(AppError::new)?;
 
         let mutex = auth_data.key_map.clone();
 
@@ -57,29 +62,45 @@ where
 
         if !has_kid {
             // Load keyset
-            let sets: JwkSet =
-                reqwest::get(format!("{}.well-known/jwks.json", auth_data.options.issuer))
-                    .await
-                    .map_err(AppError::new)?
-                    .json()
-                    .await
-                    .map_err(AppError::new)?;
+            let mut elapsed: u64 = 0;
 
-            if let Ok(mut key_sets) = mutex.write() {
-                for key in sets.keys {
-                    // The extra clone sucks, but it's only the once here for the key.
-                    let kid = key
-                        .common
-                        .key_id
-                        .clone()
-                        .ok_or_else(|| AppError::new("keyset missing kid"))?;
-                    key_sets.entry(kid).or_insert(key);
+            if let Ok(timer) = auth_data.timer.read() {
+                if let Ok(actual_elapsed) = timer.elapsed() {
+                    elapsed = actual_elapsed.as_secs();
                 }
+            }
+
+            if elapsed > 60 {
+                let sets: JwkSet =
+                    reqwest::get(format!("{}.well-known/jwks.json", auth_data.options.issuer))
+                        .await
+                        .map_err(AppError::new)?
+                        .json()
+                        .await
+                        .map_err(AppError::new)?;
+
+                if let Ok(mut key_sets) = mutex.write() {
+                    for key in sets.keys {
+                        // The extra clone sucks, but it's only the once here for the key.
+                        let kid = key
+                            .common
+                            .key_id
+                            .clone()
+                            .ok_or_else(|| AppError::new("keyset missing kid"))?;
+                        key_sets.entry(kid).or_insert(key);
+                    }
+                }
+
+                let Ok(mut timer) = auth_data.timer.write() else {
+                    return lock_err("Failed to acquire write lock for timer");
+                };
+
+                *timer = SystemTime::now();
             }
         }
 
         let Ok(key_sets) = mutex.read() else {
-            return Err(AppError::new("lock failed"));
+            return lock_err("Failed to acquire second read lock for keys");
         };
 
         let Some(key_material) = key_sets.get(&target_kid) else {
@@ -101,12 +122,9 @@ where
             validation
         };
 
-        let decoded_token = decode::<HashMap<String, serde_json::Value>>(
-            token_parts[1],
-            &decoding_key,
-            &validation,
-        )
-        .map_err(AppError::new)?;
+        let decoded_token =
+            decode::<HashMap<String, serde_json::Value>>(token, &decoding_key, &validation)
+                .map_err(AppError::new)?;
 
         Ok(Auth(
             decoded_token
@@ -122,6 +140,7 @@ where
 pub struct AuthData {
     pub key_map: Arc<RwLock<HashMap<String, Jwk>>>,
     pub options: AuthOptions,
+    pub timer: Arc<RwLock<SystemTime>>,
 }
 
 #[derive(Clone, Debug)]
