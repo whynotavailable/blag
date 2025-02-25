@@ -136,11 +136,17 @@ where
     }
 }
 
+pub fn locker<T>(obj: T) -> Arc<RwLock<T>> {
+    Arc::new(RwLock::new(obj))
+}
+
+pub type Locker<T> = Arc<RwLock<T>>;
+
 #[derive(Clone, Debug)]
 pub struct AuthData {
-    pub key_map: Arc<RwLock<HashMap<String, Jwk>>>,
+    pub key_map: Locker<HashMap<String, Jwk>>,
     pub options: AuthOptions,
-    pub timer: Arc<RwLock<SystemTime>>,
+    pub timer: Locker<SystemTime>,
 }
 
 #[derive(Clone, Debug)]

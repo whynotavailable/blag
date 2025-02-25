@@ -1,55 +1,90 @@
-use std::{
-    collections::HashMap,
-    sync::{Arc, RwLock},
-    time::SystemTime,
-};
+use std::{collections::HashMap, time::SystemTime};
 
 use crate::{
     app_state::AppState,
-    auth::{Auth, AuthData, AuthOptions},
-    errors::server_error,
+    auth::{locker, Auth, AuthData, AuthOptions},
+    errors,
     models::SimpleResponse,
 };
 use axum::{
-    extract::State,
+    extract::{Path, State},
     http::{HeaderValue, Method},
-    routing::get,
+    routing::{get, post},
     Extension, Router,
 };
+
+use serde::Serialize;
+use sqlx::{prelude::FromRow, query_as};
 use tower_http::cors::CorsLayer;
 use tracing::warn;
-use whynot_errors::{json_ok, JsonResult};
+use whynot_errors::{json_ok, AppError, JsonResult};
 
-async fn db_healthcheck(
+async fn noop(Auth(_sub): Auth) -> JsonResult<SimpleResponse> {
+    SimpleResponse::json("")
+}
+
+#[derive(FromRow, Serialize, Debug)]
+struct PageListItem {
+    slug: String,
+    title: String,
+}
+
+async fn page_list(
     State(state): State<AppState>,
-    Auth(_auth): Auth,
-) -> JsonResult<SimpleResponse> {
-    let result: (i32,) = sqlx::query_as("SELECT 12;")
-        .fetch_one(&state.db)
-        .await
-        .map_err(server_error)?;
+    Auth(_sub): Auth,
+) -> JsonResult<Vec<PageListItem>> {
+    let sql = "SELECT slug, title FROM pages;";
 
-    json_ok(SimpleResponse::new(result.0))
+    json_ok(
+        query_as(sql)
+            .fetch_all(&state.db)
+            .await
+            .map_err(AppError::new)?,
+    )
+}
+
+// Will be used for both sides.
+#[derive(FromRow, Serialize, Debug)]
+struct PageEdit {
+    title: String,
+    raw: String,
+}
+
+async fn page_get(
+    State(state): State<AppState>,
+    Auth(_sub): Auth,
+    Path(slug): Path<String>,
+) -> JsonResult<PageEdit> {
+    let sql = "SELECT title, raw FROM pages WHERE slug = $1;";
+
+    json_ok(
+        query_as(sql)
+            .bind(slug)
+            .fetch_one(&state.db)
+            .await
+            .map_err(errors::not_found)?,
+    )
 }
 
 pub fn api_routes(auth_options: AuthOptions) -> Router<AppState> {
     let original_origin = auth_options.origin.clone();
 
     let auth_data = AuthData {
-        key_map: Arc::new(RwLock::new(HashMap::new())),
         options: auth_options,
-        timer: Arc::new(RwLock::new(SystemTime::UNIX_EPOCH)),
+        key_map: locker(HashMap::new()),
+        timer: locker(SystemTime::UNIX_EPOCH),
     };
 
     // The API will be made of RPCs so only GET and POST are needed.
     let cors_all: CorsLayer = CorsLayer::permissive().allow_methods([Method::GET, Method::POST]);
 
+    // If an origin is provided, attempt to parse it and add it.
     let cors = match original_origin {
         Some(origin) => {
             if let Ok(o) = origin.parse::<HeaderValue>() {
                 cors_all.allow_origin(o)
             } else {
-                warn!("Origin {} failed to parse", origin);
+                warn!("Origin [{}] failed to parse", origin);
                 cors_all
             }
         }
@@ -57,7 +92,17 @@ pub fn api_routes(auth_options: AuthOptions) -> Router<AppState> {
     };
 
     Router::new()
-        .route("/db-healthcheck", get(db_healthcheck))
+        // Post
+        .route("/Post_list", get(noop))
+        .route("/Post_get", get(noop))
+        .route("/Post_update", post(noop))
+        .route("/Post_delete", post(noop))
+        // Page
+        .route("/Page_list", get(page_list))
+        .route("/Page_get", get(page_get))
+        .route("/Page_update", post(noop))
+        .route("/Page_delete", post(noop))
+        // Layers
         .layer(cors)
         .layer(Extension(auth_data))
 }
