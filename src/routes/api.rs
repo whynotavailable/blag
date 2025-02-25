@@ -10,17 +10,21 @@ use axum::{
     extract::{Path, State},
     http::{HeaderValue, Method},
     routing::{get, post},
-    Extension, Router,
+    Extension, Json, Router,
 };
 
-use serde::Serialize;
-use sqlx::{prelude::FromRow, query_as};
+use serde::{Deserialize, Serialize};
+use sqlx::{prelude::FromRow, query, query_as};
 use tower_http::cors::CorsLayer;
 use tracing::warn;
 use whynot_errors::{json_ok, AppError, JsonResult};
 
+fn err<T>(obj: impl ToString) -> JsonResult<T> {
+    Err(AppError::new(obj))
+}
+
 async fn noop(Auth(_sub): Auth) -> JsonResult<SimpleResponse> {
-    SimpleResponse::json("")
+    err("Not Implemented")
 }
 
 #[derive(FromRow, Serialize, Debug)]
@@ -44,7 +48,7 @@ async fn page_list(
 }
 
 // Will be used for both sides.
-#[derive(FromRow, Serialize, Debug)]
+#[derive(FromRow, Serialize, Deserialize, Debug)]
 struct PageEdit {
     title: String,
     raw: String,
@@ -64,6 +68,27 @@ async fn page_get(
             .await
             .map_err(errors::not_found)?,
     )
+}
+
+async fn page_update(
+    State(state): State<AppState>,
+    Auth(_sub): Auth,
+    Path(slug): Path<String>,
+    Json(body): Json<PageEdit>,
+) -> JsonResult<SimpleResponse> {
+    let sql = "SELECT pages SET title = $1, raw = $2, content = $3 WHERE slug = $4;";
+    let html = markdown::to_html(&body.raw);
+
+    query(sql)
+        .bind(body.title)
+        .bind(body.raw)
+        .bind(html)
+        .bind(slug)
+        .execute(&state.db)
+        .await
+        .map_err(AppError::new)?;
+
+    SimpleResponse::json("ok")
 }
 
 pub fn api_routes(auth_options: AuthOptions) -> Router<AppState> {
@@ -100,7 +125,7 @@ pub fn api_routes(auth_options: AuthOptions) -> Router<AppState> {
         // Page
         .route("/Page_list", get(page_list))
         .route("/Page_get", get(page_get))
-        .route("/Page_update", post(noop))
+        .route("/Page_update", post(page_update))
         .route("/Page_delete", post(noop))
         // Layers
         .layer(cors)
