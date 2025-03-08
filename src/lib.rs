@@ -48,7 +48,7 @@ pub async fn setup(root_path: String) -> SetupResult {
         .map_err(SetupError::new)?;
 
     let db = PgPoolOptions::new()
-        .max_connections(10)
+        .max_connections(100)
         .connect(conn_cstr)
         .await
         .map_err(SetupError::new)?;
