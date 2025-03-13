@@ -3,21 +3,19 @@ use std::{collections::HashMap, time::SystemTime};
 use crate::{
     app_state::AppState,
     auth::{locker, Auth, AuthData, AuthOptions},
-    errors,
     models::SimpleResponse,
+    routes::pages::*,
 };
 use axum::{
-    extract::{Path, State},
-    http::{HeaderValue, Method},
+    http::HeaderValue,
+    http::Method,
     routing::{get, post},
-    Extension, Json, Router,
+    Extension, Router,
 };
 
-use serde::{Deserialize, Serialize};
-use sqlx::{prelude::FromRow, query, query_as};
 use tower_http::cors::CorsLayer;
-use tracing::{info, warn};
-use whynot_errors::{json_ok, AppError, JsonResult};
+use tracing::warn;
+use whynot_errors::{AppError, JsonResult};
 
 fn err<T>(obj: impl ToString) -> JsonResult<T> {
     Err(AppError::new(obj))
@@ -25,70 +23,6 @@ fn err<T>(obj: impl ToString) -> JsonResult<T> {
 
 async fn noop(Auth(_sub): Auth) -> JsonResult<SimpleResponse> {
     err("Not Implemented")
-}
-
-#[derive(FromRow, Serialize, Debug)]
-struct PageListItem {
-    slug: String,
-    title: String,
-}
-
-async fn page_list(
-    State(state): State<AppState>,
-    Auth(_sub): Auth,
-) -> JsonResult<Vec<PageListItem>> {
-    let sql = "SELECT slug, title FROM pages;";
-
-    json_ok(
-        query_as(sql)
-            .fetch_all(&state.db)
-            .await
-            .map_err(AppError::new)?,
-    )
-}
-
-// Will be used for both sides.
-#[derive(FromRow, Serialize, Deserialize, Debug)]
-struct PageEdit {
-    title: String,
-    raw: String,
-}
-
-async fn page_get(
-    State(state): State<AppState>,
-    Auth(_sub): Auth,
-    Path(slug): Path<String>,
-) -> JsonResult<PageEdit> {
-    let sql = "SELECT title, raw FROM pages WHERE slug = $1;";
-
-    json_ok(
-        query_as(sql)
-            .bind(slug)
-            .fetch_one(&state.db)
-            .await
-            .map_err(errors::not_found)?,
-    )
-}
-
-async fn page_update(
-    State(state): State<AppState>,
-    Auth(_sub): Auth,
-    Path(slug): Path<String>,
-    Json(body): Json<PageEdit>,
-) -> JsonResult<SimpleResponse> {
-    let sql = "UPDATE pages SET title = $1, raw = $2, content = $3 WHERE slug = $4;";
-    let html = markdown::to_html(&body.raw);
-
-    query(sql)
-        .bind(body.title)
-        .bind(body.raw)
-        .bind(html)
-        .bind(slug)
-        .execute(&state.db)
-        .await
-        .map_err(AppError::new)?;
-
-    SimpleResponse::json("ok")
 }
 
 pub fn api_routes(auth_options: AuthOptions) -> Router<AppState> {
@@ -101,7 +35,7 @@ pub fn api_routes(auth_options: AuthOptions) -> Router<AppState> {
     };
 
     // The API will be made of RPCs so only GET and POST are needed.
-    let cors_all: CorsLayer = CorsLayer::permissive(); //.allow_methods([Method::GET, Method::POST]);
+    let cors_all: CorsLayer = CorsLayer::permissive().allow_methods([Method::GET, Method::POST]);
 
     // If an origin is provided, attempt to parse it and add it.
     let cors = match original_origin {

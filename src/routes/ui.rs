@@ -36,7 +36,7 @@ struct SearchParams {
 
 // To make the conversions simpler
 fn get_size<T>(vec: &[T]) -> usize {
-    vec.len().to_owned()
+    vec.len()
 }
 
 fn get_query(page: i32, category: Option<Uuid>) -> String {
@@ -92,7 +92,6 @@ struct GetPageData {
     content: String,
 }
 
-#[allow(unused_variables)]
 async fn get_page(State(state): State<AppState>, Path(slug): Path<String>) -> HtmlResult {
     let query: &'static str = r#"
     SELECT title, content
