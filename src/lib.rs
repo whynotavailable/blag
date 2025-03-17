@@ -55,8 +55,8 @@ pub async fn setup(root_path: String) -> SetupResult {
 
     let shared_state = AppState { db, registry };
 
-    let audience = settings.get_string("audience").unwrap_or("".to_string());
-    let issuer = settings.get_string("issuer").unwrap_or("".to_string());
+    let audience = settings.get_string("audience").unwrap_or(String::from(""));
+    let issuer = settings.get_string("issuer").unwrap_or(String::from(""));
     let origin = settings.get_string("origin").ok();
 
     let auth_options = AuthOptions {
